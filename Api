@@ -1,0 +1,77 @@
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({
+      error: "Method not allowed"
+    });
+  }
+
+  const { type, amount, orderId, username } =
+    req.body || {};
+
+  if (
+    !["topup", "panel"].includes(type) ||
+    !Number.isInteger(amount) ||
+    amount < 1000 ||
+    !orderId ||
+    !username
+  ) {
+    return res.status(400).json({
+      error: "Data pembayaran tidak valid"
+    });
+  }
+
+  const apiUrl =
+    process.env.SAIRIBOT_CREATE_PAYMENT_URL;https://api.sairibot.my.id/
+  const apiKey =
+    process.env.SAIRIBOT_API_KEY;SKY_2aa054d6107246c2
+
+  if (!apiUrl || !apiKey) {
+    return res.status(503).json({
+      error: "Payment gateway belum dikonfigurasi"
+    });
+  }
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        amount,
+        order_id: orderId,
+        customer_name: username,
+        description:
+          type === "topup"
+            ? "Top up RinPerintis"
+            : "Panel RinPerintis"
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res.status(502).json({
+        error: "Permintaan pembayaran gagal"
+      });
+    }
+
+    const paymentUrl =
+      data.payment_url ||
+      data.paymentUrl ||
+      data.data?.payment_url ||
+      data.data?.checkout_url ||
+      null;
+
+    return res.status(200).json({
+      ok: true,
+      paymentUrl
+    });
+  } catch (error) {
+    return res.status(502).json({
+      error: "Tidak dapat menghubungi gateway"
+    });
+  }
+}
